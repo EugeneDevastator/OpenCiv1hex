@@ -8,6 +8,7 @@ namespace OpenCivOne.Tests
 	/// </summary>
 	public class UnitMovementTests
 	{
+		private const int Up = 1;
 		private const int UpRight = 2;
 		private const int Right = 3;
 		private const int Down = 5;
@@ -91,8 +92,8 @@ namespace OpenCivOne.Tests
 		[Fact]
 		public void BomberTurnEndsAfterAttacking()
 		{
-			// Bomber #44 at (69,15) attacks the barbarian Militia at (70,14)
-			Unit bomber = AttackAndWin(44, UpRight);
+			// Bomber #44 at (69,15) attacks the barbarian Militia at (69,14), its hex neighbour to the north
+			Unit bomber = AttackAndWin(44, Up);
 
 			Assert.Equal(0, bomber.RemainingMoves);
 		}

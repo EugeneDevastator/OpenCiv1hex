@@ -657,6 +657,9 @@ namespace OpenCivOne
 
 									for (int j = 0; j < 9; j++)
 									{
+										if (j != 0 && !this.parent.MapManagement.IsValidHexDirection(this.parent.GameData.Cities[i].Position.X, j))
+											continue;
+
 										direction = this.parent.MoveDirections[j];
 
 										int newX = this.parent.MapManagement.AdjustXPosition(this.parent.GameData.Cities[i].Position.X + direction.X);
@@ -730,6 +733,9 @@ namespace OpenCivOne
 
 					for (int i = 1; i < 9; i++)
 					{
+						if (!this.parent.MapManagement.IsValidHexDirection(unit.GoToDestination.X, i))
+							continue;
+
 						direction = this.parent.MoveDirections[i];
 
 						int newX = this.parent.MapManagement.AdjustXPosition(unit.GoToDestination.X + direction.X);
@@ -796,6 +802,9 @@ namespace OpenCivOne
 
 						for (int i = 1; i < 9; i++)
 						{
+							if (!this.parent.MapManagement.IsValidHexDirection(unitX, i))
+								continue;
+
 							direction = this.parent.MoveDirections[i];
 
 							int newX = this.parent.MapManagement.AdjustXPosition(unitX + direction.X);
@@ -1064,6 +1073,9 @@ namespace OpenCivOne
 						{
 							for (int i = 1; i < 9; i++)
 							{
+								if (!this.parent.MapManagement.IsValidHexDirection(unitX, i))
+									continue;
+
 								direction = this.parent.MoveDirections[i];
 
 								// Instruction address 0x25fb:0x1a7b, size: 5
@@ -1353,8 +1365,8 @@ namespace OpenCivOne
 												this.parent.MapManagement.GetTerrainType(newX, newY) != TerrainTypeEnum.Hills ||
 												this.parent.MapManagement.F0_2aea_1836_CellHasSpecialResource(newX, newY))
 											{
-												if (this.parent.MapManagement.GetDistance(newX - this.parent.GameData.Cities[nearestCityID].Position.X,
-													newY - this.parent.GameData.Cities[nearestCityID].Position.Y) < 3)
+												if (this.parent.MapManagement.GetDistance(this.parent.GameData.Cities[nearestCityID].Position,
+													new GPoint(newX, newY)) < 3)
 												{
 													unit.GoToDestination = new(newX, newY);
 
@@ -1380,6 +1392,9 @@ namespace OpenCivOne
 
 									for (int i = 1; i < 9; i++)
 									{
+										if (!this.parent.MapManagement.IsValidHexDirection(unitX, i))
+											continue;
+
 										direction = this.parent.MoveDirections[i];
 
 										int newX = this.parent.MapManagement.AdjustXPosition(unitX + direction.X);
@@ -1523,6 +1538,9 @@ namespace OpenCivOne
 
 				for (int i = 1; i < 9; i++)
 				{
+					if (!this.parent.MapManagement.IsValidHexDirection(unitX, i))
+						continue;
+
 					direction = this.parent.MoveDirections[i];
 
 					int newX = this.parent.MapManagement.AdjustXPosition(unitX + direction.X);
@@ -2133,6 +2151,9 @@ namespace OpenCivOne
 			{
 				int newDirectionCount = 0;
 
+				if (i != 0 && !this.parent.MapManagement.IsValidHexDirection(x, i))
+					continue;
+
 				direction = this.parent.MoveDirections[i];
 
 				int newX = x + direction.X;
@@ -2145,6 +2166,9 @@ namespace OpenCivOne
 				{
 					for (int j = 1; j < 9; j++)
 					{
+						if (!this.parent.MapManagement.IsValidHexDirection(newX, j))
+							continue;
+
 						direction = this.parent.MoveDirections[j];
 
 						int newX1 = newX + direction.X;
@@ -2220,6 +2244,9 @@ namespace OpenCivOne
 
 				for (int i = 1; i < 9; i++)
 				{
+					if (!this.parent.MapManagement.IsValidHexDirection(unitX, i))
+						continue;
+
 					GPoint direction = this.parent.MoveDirections[i];
 
 					int newX = this.parent.MapManagement.AdjustXPosition(unitX + direction.X);
@@ -2410,6 +2437,9 @@ namespace OpenCivOne
 
 			for(int i = 1; i < 9; i++)
 			{
+				if (!this.parent.MapManagement.IsValidHexDirection(unitX, i))
+					continue;
+
 				GPoint direction = this.parent.MoveDirections[i];
 
 				int newX = this.parent.MapManagement.AdjustXPosition(unitX + direction.X);

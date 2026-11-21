@@ -508,11 +508,12 @@ namespace OpenCivOne
 					}
 
 					this.iTotalCellWorth = 0;
+					IReadOnlyList<GPoint> cityOffsets = HexGrid.GetCityOffsets(this.oPosition.X);
 
-					for (int k = 0; k < 21; k++)
+					for (int k = 0; k < HexGrid.CityOffsetCount; k++)
 					{
 						int cellWorth = 0;
-						GPoint newPos = this.oPosition.Offset(this.oParent.Parent.GameData.CityOffsets[k]);
+						GPoint newPos = this.oPosition.Offset(cityOffsets[k]);
 
 						if ((this.eTerrainType == TerrainTypeEnum.Grassland || this.eTerrainType == TerrainTypeEnum.River) && (((newPos.X * 7) + (newPos.Y * 11)) & 0x2) == 0)
 						{
@@ -540,7 +541,7 @@ namespace OpenCivOne
 
 						cellWorth += coefficient;
 
-						if (k < 9)
+						if (k < 6)
 						{
 							cellWorth += cellWorth;
 						}

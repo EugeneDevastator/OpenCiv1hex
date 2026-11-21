@@ -859,12 +859,13 @@ namespace OpenCivOne
 						if (terrainType == TerrainTypeEnum.River || terrainType == TerrainTypeEnum.Grassland || terrainType == TerrainTypeEnum.Plains)
 						{
 							int totalCellWorth = 0;
+							IReadOnlyList<GPoint> cityOffsets = HexGrid.GetCityOffsets(j);
 
-							for (int k = 0; k < 21; k++)
+							for (int k = 0; k < HexGrid.CityOffsetCount; k++)
 							{
 								int cellWorth = 0;
-								int xPos = this.oGameData.CityOffsets[k].X + j;
-								int yPos = this.oGameData.CityOffsets[k].Y + i;
+								int xPos = cityOffsets[k].X + j;
+								int yPos = cityOffsets[k].Y + i;
 
 								terrainType = this.Cells[xPos, yPos].TerrainType;
 
@@ -882,7 +883,7 @@ namespace OpenCivOne
 									cellWorth += terrainCoefficients1.GetValueByKey(terrainType);
 								}
 
-								if (k < 9)
+								if (k < 6)
 								{
 									cellWorth += cellWorth;
 								}
@@ -1067,74 +1068,35 @@ namespace OpenCivOne
 					GPoint position = queue.Dequeue(); // remove the next position from the queue
 					TerrainMapCell cell;
 
-					// validate neighbouring positions
-					if (position.Y - 1 >= 0)
+					// validate neighbouring positions using the six hex neighbours.
+					// Water groups only connect orthogonally, as in the original game.
+					for (int k = 1; k <= 8; k++)
 					{
-						// North
-						if ((cell = this.Cells[position.X, position.Y - 1]).GroupID == -1 && cell.GroupType == groupType)
+						GPoint offset = HexGrid.DirectionOffsets[k];
+
+						if (!HexGrid.IsValidOffset(position.X, offset.X, offset.Y))
 						{
-							this.Cells[position.X, position.Y - 1].GroupID = iGroupID; // Set the neighbour cell to our GroupID
-							iCellCount++; // Increment the group cell count
-							queue.Enqueue(new GPoint(position.X, position.Y - 1)); // Append the current position to the queue
+							continue;
 						}
 
-						// North - West
-						if (groupType != TerrainMapGroupTypeEnum.Water && (cell = this.Cells[position.X - 1, position.Y - 1]).GroupID == -1 && cell.GroupType == groupType)
+						if (groupType == TerrainMapGroupTypeEnum.Water && offset.X != 0 && offset.Y != 0)
 						{
-							this.Cells[position.X - 1, position.Y - 1].GroupID = iGroupID; // Set the neighbour cell to our GroupID
-							iCellCount++; // Increment the group cell count
-							queue.Enqueue(new GPoint(position.X - 1, position.Y - 1)); // Append the current position to the queue
+							continue;
 						}
 
-						// North - East
-						if (groupType != TerrainMapGroupTypeEnum.Water && (cell = this.Cells[position.X + 1, position.Y - 1]).GroupID == -1 && cell.GroupType == groupType)
+						int neighbourX = position.X + offset.X;
+						int neighbourY = position.Y + offset.Y;
+
+						if (neighbourY < 0 || neighbourY >= this.oSize.Height)
 						{
-							this.Cells[position.X + 1, position.Y - 1].GroupID = iGroupID; // Set the neighbour cell to our GroupID
-							iCellCount++; // Increment the group cell count
-							queue.Enqueue(new GPoint(position.X + 1, position.Y - 1)); // Append the current position to the queue
-						}
-					}
-
-					// West
-					if ((cell = this.Cells[position.X - 1, position.Y]).GroupID == -1 && cell.GroupType == groupType)
-					{
-						this.Cells[position.X - 1, position.Y].GroupID = iGroupID; // Set the neighbour cell to our GroupID
-						iCellCount++; // Increment the group cell count
-						queue.Enqueue(new GPoint(position.X - 1, position.Y)); // Append the current position to the queue
-					}
-
-					// East
-					if ((cell = this.Cells[position.X + 1, position.Y]).GroupID == -1 && cell.GroupType == groupType)
-					{
-						this.Cells[position.X + 1, position.Y].GroupID = iGroupID; // Set the neighbour cell to our GroupID
-						iCellCount++; // Increment the group cell count
-						queue.Enqueue(new GPoint(position.X + 1, position.Y)); // Append the current position to the queue
-					}
-
-					if (position.Y + 1 < this.oSize.Height)
-					{
-						// South
-						if ((cell = this.Cells[position.X, position.Y + 1]).GroupID == -1 && cell.GroupType == groupType)
-						{
-							this.Cells[position.X, position.Y + 1].GroupID = iGroupID; // Set the neighbour cell to our GroupID
-							iCellCount++; // Increment the group cell count
-							queue.Enqueue(new GPoint(position.X, position.Y + 1)); // Append the current position to the queue
+							continue;
 						}
 
-						// South - West
-						if (groupType != TerrainMapGroupTypeEnum.Water && (cell = this.Cells[position.X - 1, position.Y + 1]).GroupID == -1 && cell.GroupType == groupType)
+						if ((cell = this.Cells[neighbourX, neighbourY]).GroupID == -1 && cell.GroupType == groupType)
 						{
-							this.Cells[position.X - 1, position.Y + 1].GroupID = iGroupID; // Set the neighbour cell to our GroupID
+							this.Cells[neighbourX, neighbourY].GroupID = iGroupID; // Set the neighbour cell to our GroupID
 							iCellCount++; // Increment the group cell count
-							queue.Enqueue(new GPoint(position.X - 1, position.Y + 1)); // Append the current position to the queue
-						}
-
-						// South - East
-						if (groupType != TerrainMapGroupTypeEnum.Water && (cell = this.Cells[position.X + 1, position.Y + 1]).GroupID == -1 && cell.GroupType == groupType)
-						{
-							this.Cells[position.X + 1, position.Y + 1].GroupID = iGroupID; // Set the neighbour cell to our GroupID
-							iCellCount++; // Increment the group cell count
-							queue.Enqueue(new GPoint(position.X + 1, position.Y + 1)); // Append the current position to the queue
+							queue.Enqueue(new GPoint(neighbourX, neighbourY)); // Append the current position to the queue
 						}
 					}
 				}
@@ -1215,7 +1177,7 @@ namespace OpenCivOne
 		/// <returns>The shortest distance (number of moves in a two dimensional space)</returns>
 		public int GetDistance(GPoint pt1, GPoint pt2)
 		{
-			return GetDistance(new GSize(pt2 - pt1));
+			return HexGrid.WrappedDistance(pt1.X, pt1.Y, pt2.X, pt2.Y, this.oSize.Width);
 		}
 
 		/// <summary>
@@ -1403,7 +1365,7 @@ namespace OpenCivOne
 					{
 						for (int j = -1; j <= 1 && !destinationReached; j++)
 						{
-							if (i == 0 && j == 0)
+							if (!HexGrid.IsValidOffset(WrapXPosition(pos.X), j, i))
 								continue;
 
 							GPoint newPos = pos.Offset(j, i);

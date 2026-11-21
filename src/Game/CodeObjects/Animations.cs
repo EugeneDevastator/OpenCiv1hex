@@ -35,8 +35,11 @@ namespace OpenCivOne
 				bitmaps[i] = this.parent.Graphics.F0_VGA_0b85_ScreenToBitmap(1, ((i % 7) * 45) + 1, ((i / 7) * 45) + 1, 44, 44);
 			}
 
-			x = this.parent.CommonTools.CheckValueRange(this.parent.MapManagement.AdjustXPosition(x - this.parent.Var_d4cc_MapViewX) * 16 + 66, 80, 276);
-			y = this.parent.CommonTools.CheckValueRange((y - this.parent.Var_d75e_MapViewY) * 16 - 6, 8, 156);
+			int screenX = this.parent.MapManagement.GetCellScreenX(x);
+			int screenY = this.parent.MapManagement.GetCellScreenY(x, y);
+
+			x = this.parent.CommonTools.CheckValueRange(screenX - 14, 80, 276);
+			y = this.parent.CommonTools.CheckValueRange(screenY - 14, 8, 156);
 
 			// Instruction address 0x0000:0x0a41, size: 5
 			this.parent.CommonTools.PlayTune(42, 0);

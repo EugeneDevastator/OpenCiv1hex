@@ -43,7 +43,9 @@ namespace OpenCivOne.Tests
 		[Fact]
 		public void PlaysTheRecordedGame()
 		{
-			Assert.Equal("50907F0EAD5AF527F0A46955E0B1D877D74E31485AA7D0FDC9ACF3C54090C7A0", PlayAndHashSaveGame(seed: 42, turns: 50));
+			// The hex grid changes which cells are neighbours, so computer players move
+			// differently and the recorded game's outcome changed. See the note above.
+			Assert.Equal("921644F28E4756BF4462E70AE70C9094B9A79BC7A6A32E7680462ED63E263844", PlayAndHashSaveGame(seed: 42, turns: 50));
 		}
 
 		private static string PlayAndHashSaveGame(int seed, int turns)

@@ -1,3 +1,4 @@
+using OpenCivOne.Graphics;
 using System.Globalization;
 using System.Text;
 
@@ -422,10 +423,12 @@ namespace OpenCivOne
 			{
 				this.parent.GameData.MapVisibility[cityX, cityY] |= (ushort)(1 << actionPlayerID);
 
-				for (int i = 0; i < 20; i++)
+				IReadOnlyList<GPoint> cityOffsets = this.parent.MapManagement.GetCityOffsets(cityX);
+
+				for (int i = 0; i < HexGrid.CityCenterOffsetIndex; i++)
 				{
-					int newX = this.parent.MapManagement.AdjustXPosition(this.parent.CityOffsets[i].X + cityX);
-					int newY = this.parent.CityOffsets[i].Y + cityY;
+					int newX = this.parent.MapManagement.AdjustXPosition(cityOffsets[i].X + cityX);
+					int newY = cityOffsets[i].Y + cityY;
 
 					if (this.parent.MapManagement.ValidateMapCoordinates(newX, newY))
 					{

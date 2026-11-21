@@ -15,7 +15,7 @@ namespace OpenCivOne
 		// 0x652e - after this offset the default values are set to 0
 
 		public int Var_653e_CityID = 0;
-		private int Var_6540_CityOffsetCount = 21;
+		private int Var_6540_CityOffsetCount = HexGrid.CityOffsetCount;
 		private int Var_6542 = 0;
 		private int Var_6546 = 0;
 		public short Var_6548_PlayerID = 0;
@@ -52,8 +52,9 @@ namespace OpenCivOne
 			int newCityWindowUnitX = 0;
 			int newCityWindowUnitY = 0;
 
-			int[] cityFreeArea = new int[21];
+			int[] cityFreeArea = new int[HexGrid.CityOffsetCount];
 			City city = this.parent.GameData.Cities[cityID];
+			IReadOnlyList<GPoint> cityOffsets = this.parent.MapManagement.GetCityOffsets(city.Position.X);
 			bool[,] cityArea = new bool[5, 5];
 
 			if (city.Status != CityStatusEnum.Invalid)
@@ -102,16 +103,21 @@ namespace OpenCivOne
 
 						if (intercityDistance < 6)
 						{
-							for (int j = 0; j < 21; j++)
-							{
-								if ((this.parent.GameData.Cities[i].WorkerFlags & (uint)(1 << j)) != 0 || j == 20)
-								{
-									int xPos = this.parent.GameData.Cities[i].Position.X + this.parent.CityOffsets[j].X;
-									int yPos = this.parent.GameData.Cities[i].Position.Y + this.parent.CityOffsets[j].Y;
+							IReadOnlyList<GPoint> otherCityOffsets = this.parent.MapManagement.GetCityOffsets(this.parent.GameData.Cities[i].Position.X);
 
-									if (Math.Abs(xPos - city.Position.X) <= 2 && Math.Abs(yPos - city.Position.Y) <= 2)
+							for (int j = 0; j < HexGrid.CityOffsetCount; j++)
+							{
+								if ((this.parent.GameData.Cities[i].WorkerFlags & (uint)(1 << j)) != 0 || j == HexGrid.CityCenterOffsetIndex)
+								{
+									GPoint otherTilePosition = new GPoint(
+										this.parent.GameData.Cities[i].Position.X + otherCityOffsets[j].X,
+										this.parent.GameData.Cities[i].Position.Y + otherCityOffsets[j].Y);
+
+									if (this.parent.MapManagement.GetHexDistance(city.Position, otherTilePosition) <= HexGrid.CityRadius)
 									{
-										cityArea[xPos - city.Position.X + 2, yPos - city.Position.Y + 2] = true;
+										GPoint tileDelta = this.parent.MapManagement.GetDistanceOffset(city.Position, otherTilePosition);
+
+										cityArea[tileDelta.X + 2, tileDelta.Y + 2] = true;
 									}
 								}
 							}
@@ -123,6 +129,7 @@ namespace OpenCivOne
 				this.Var_6548_PlayerID = city.PlayerID;
 				int mapViewX = this.parent.Var_d4cc_MapViewX;
 				int mapViewY = this.parent.Var_d75e_MapViewY;
+				int mapViewOffsetY = this.parent.Var_MapViewOffsetY;
 
 				int productionRatio;
 
@@ -227,13 +234,18 @@ namespace OpenCivOne
 					this.parent.Var_d4cc_MapViewX = city.Position.X - 5;
 					this.parent.Var_d75e_MapViewY = city.Position.Y - 3;
 
+					// The city radius reaches half a cell lower on staggered columns. Lift the
+					// whole preview by that half cell so both column parities sit in the same
+					// 80x80 panel and line up with the original square-grid layout.
+					this.parent.Var_MapViewOffsetY = -HexGrid.ColumnPixelOffset(city.Position.X);
+
 					// Instruction address 0x1d12:0x05cd, size: 5
 					this.parent.MapManagement.F0_2aea_03ba_DrawCell(city.Position.X, city.Position.Y);
 
 					for (int i = 0; i < this.Var_6540_CityOffsetCount; i++)
 					{
-						int newX = city.Position.X + this.parent.CityOffsets[i].X;
-						int newY = city.Position.Y + this.parent.CityOffsets[i].Y;
+						int newX = this.parent.MapManagement.AdjustXPosition(city.Position.X + cityOffsets[i].X);
+						int newY = city.Position.Y + cityOffsets[i].Y;
 
 						if (this.Var_6548_PlayerID != this.parent.GameData.HumanPlayerID ||
 							(this.parent.GameData.MapVisibility[newX, newY] & (1 << this.Var_6548_PlayerID)) != 0)
@@ -251,11 +263,12 @@ namespace OpenCivOne
 								// Instruction address 0x1d12:0x06a1, size: 5
 								this.parent.MapManagement.F0_2aea_03ba_DrawCell(newX, newY);
 
-								if (cityArea[this.parent.CityOffsets[i].X + 2, this.parent.CityOffsets[i].Y + 2])
+								if (cityArea[cityOffsets[i].X + 2, cityOffsets[i].Y + 2])
 								{
 									// Instruction address 0x1d12:0x06f6, size: 5
 									this.parent.DrawTools.DrawRectangle(
-										(newX - this.parent.Var_d4cc_MapViewX) * 16 + 80, (newY - this.parent.Var_d75e_MapViewY) * 16 + 8, 15, 15, 12);
+										this.parent.MapManagement.GetCellScreenX(newX),
+										this.parent.MapManagement.GetCellScreenY(newX, newY), 15, 15, 12);
 								}
 							}
 						}
@@ -427,8 +440,8 @@ namespace OpenCivOne
 				{
 					cityFreeArea[i] = 0;
 
-					int newX = city.Position.X + this.parent.CityOffsets[i].X;
-					int newY = city.Position.Y + this.parent.CityOffsets[i].Y;
+					int newX = this.parent.MapManagement.AdjustXPosition(city.Position.X + cityOffsets[i].X);
+					int newY = city.Position.Y + cityOffsets[i].Y;
 
 					if (this.Var_6548_PlayerID != 0 && (this.parent.GameData.MapVisibility[newX, newY] & (1 << this.Var_6548_PlayerID)) == 0)
 					{
@@ -440,7 +453,7 @@ namespace OpenCivOne
 
 					if (activeUnitPlayerID != -1 && activeUnitPlayerID != this.Var_6548_PlayerID)
 					{
-						cityArea[this.parent.CityOffsets[i].X + 2, this.parent.CityOffsets[i].Y + 2] = true;
+						cityArea[cityOffsets[i].X + 2, cityOffsets[i].Y + 2] = true;
 						cityFreeArea[i] = 1;
 
 						if (activeUnitPlayerID == this.parent.GameData.HumanPlayerID)
@@ -449,7 +462,7 @@ namespace OpenCivOne
 						}
 					}
 
-					if (cityArea[this.parent.CityOffsets[i].X + 2, this.parent.CityOffsets[i].Y + 2])
+					if (cityArea[cityOffsets[i].X + 2, cityOffsets[i].Y + 2])
 					{
 						cityFreeArea[i] = 1;
 					}
@@ -517,14 +530,14 @@ namespace OpenCivOne
 						goto L1292;
 				}
 
-				if (currentWorkingCitizenCount > 0 && cityFreeArea[20] == 0)
+				if (currentWorkingCitizenCount > 0 && cityFreeArea[HexGrid.CityCenterOffsetIndex] == 0)
 				{
-					cityFreeArea[20] = 1;
+					cityFreeArea[HexGrid.CityCenterOffsetIndex] = 1;
 
 					// Instruction address 0x1d12:0x0eb2, size: 5
-					F0_1d12_692d_CityResources(cityID, 20, flag);
+					F0_1d12_692d_CityResources(cityID, HexGrid.CityCenterOffsetIndex, flag);
 
-					newWorkerFlags |= 0x100000;
+					newWorkerFlags |= (uint)(1 << HexGrid.CityCenterOffsetIndex);
 					currentWorkingCitizenCount--;
 				}
 
@@ -539,8 +552,8 @@ namespace OpenCivOne
 					{
 						if (cityFreeArea[i] == 0)
 						{
-							int newX = city.Position.X + this.parent.CityOffsets[i].X;
-							int newY = city.Position.Y + this.parent.CityOffsets[i].Y;
+							int newX = city.Position.X + cityOffsets[i].X;
+							int newY = city.Position.Y + cityOffsets[i].Y;
 
 							// Instruction address 0x1d12:0x0f9e, size: 5
 							int cityFood = F0_1d12_6abc_GetCityResourceCount(this.Var_6548_PlayerID, this.Var_653e_CityID, newX, newY, CityResourceTypeEnum.Food);
@@ -589,8 +602,8 @@ namespace OpenCivOne
 					{
 						if (cityFreeArea[i] == 0)
 						{
-							int newX = city.Position.X + this.parent.CityOffsets[i].X;
-							int newY = city.Position.Y + this.parent.CityOffsets[i].Y;
+							int newX = city.Position.X + cityOffsets[i].X;
+							int newY = city.Position.Y + cityOffsets[i].Y;
 
 							// Instruction address 0x1d12:0x1151, size: 5
 							int cityFood = F0_1d12_6abc_GetCityResourceCount(this.Var_6548_PlayerID, this.Var_653e_CityID, newX, newY, CityResourceTypeEnum.Food) * 
@@ -2822,20 +2835,25 @@ namespace OpenCivOne
 							{
 								do
 								{
+									int cursorCellX = city.Position.X + newCityWindowUnitX;
+									int cursorCellY = city.Position.Y + newCityWindowUnitY;
+									int cursorScreenX = this.parent.MapManagement.GetCellScreenX(cursorCellX);
+									int cursorScreenY = this.parent.MapManagement.GetCellScreenY(cursorCellX, cursorCellY);
+
 									// Instruction address 0x1d12:0x541d, size: 5
 									this.parent.Graphics.F0_VGA_07d8_DrawImage(this.parent.Var_aa_Screen0_Rectangle,
-										(newCityWindowUnitX * 16) + 160, (newCityWindowUnitY * 16) + 56,
+										cursorScreenX, cursorScreenY,
 										16, 16, this.parent.Var_19d4_Screen1_Rectangle, 0, 0);
 
 									// Instruction address 0x1d12:0x5449, size: 5
-									this.parent.DrawTools.DrawRectangle((newCityWindowUnitX * 16) + 160, (newCityWindowUnitY * 16) + 56, 15, 15, 15);
+									this.parent.DrawTools.DrawRectangle(cursorScreenX, cursorScreenY, 15, 15, 15);
 
 									// Instruction address 0x1d12:0x5455, size: 5
 									this.parent.CommonTools.WaitTimer(10);
 
 									// Instruction address 0x1d12:0x548d, size: 5
 									this.parent.Graphics.F0_VGA_07d8_DrawImage(this.parent.Var_19d4_Screen1_Rectangle, 0, 0, 16, 16, this.parent.Var_aa_Screen0_Rectangle,
-										(newCityWindowUnitX * 16) + 160, (newCityWindowUnitY * 16) + 56);
+										cursorScreenX, cursorScreenY);
 
 									// Instruction address 0x1d12:0x5499, size: 5
 									this.parent.CommonTools.WaitTimer(10);
@@ -2889,8 +2907,13 @@ namespace OpenCivOne
 										break;
 								}
 
-								if (Math.Abs(newCityWindowUnitX) > 2 || Math.Abs(newCityWindowUnitY) > 2 || Math.Abs(newCityWindowUnitX) + Math.Abs(newCityWindowUnitY) >= 4 ||
-									(this.parent.GameData.MapVisibility[city.Position.X + newCityWindowUnitX, city.Position.Y + newCityWindowUnitY] & (1 << this.parent.GameData.HumanPlayerID)) == 0)
+								if (Math.Abs(newCityWindowUnitX) > HexGrid.CityRadius || Math.Abs(newCityWindowUnitY) > HexGrid.CityRadius ||
+									city.Position.Y + newCityWindowUnitY < 0 || city.Position.Y + newCityWindowUnitY >= MapManagement.MapSize.Height ||
+									this.parent.MapManagement.GetHexDistance(city.Position,
+										new GPoint(city.Position.X + newCityWindowUnitX, city.Position.Y + newCityWindowUnitY)) > HexGrid.CityRadius ||
+									(this.parent.GameData.MapVisibility[
+										this.parent.MapManagement.AdjustXPosition(city.Position.X + newCityWindowUnitX),
+										city.Position.Y + newCityWindowUnitY] & (1 << this.parent.GameData.HumanPlayerID)) == 0)
 								{
 									newCityWindowUnitX = cityWindowX;
 									newCityWindowUnitY = cityWindowY;
@@ -3055,27 +3078,32 @@ namespace OpenCivOne
 							}
 						}
 
-						if (mouseEvent.Position.Y >= 24 && mouseEvent.Position.Y < 104) goto L5a74;
+						// Staggered columns reach half a cell lower than the original square grid.
+						if (mouseEvent.Position.Y >= 24 && mouseEvent.Position.Y < 120) goto L5a74;
 						goto L5cc2;
 
 					L5a74:
-						cityWindowX = (mouseEvent.Position.X / 16) - 10;
-						cityWindowY = ((mouseEvent.Position.Y - 24) / 16) - 2;
+						GPoint clickedCell = this.parent.MapManagement.GetCellFromScreen(mouseEvent.Position);
+						GPoint clickedDelta = this.parent.MapManagement.GetDistanceOffset(city.Position, clickedCell);
+
+						cityWindowX = clickedDelta.X;
+						cityWindowY = clickedDelta.Y;
 
 					L5aa6:
 						// Instruction address 0x1d12:0x5aae, size: 5
 						outsideUnitIndex = F0_1d12_000a_FindCityOffset(new GPoint(cityWindowX, cityWindowY));
 
-						if (outsideUnitIndex != -1 && outsideUnitIndex < 20)
+						if (outsideUnitIndex != -1 && outsideUnitIndex < HexGrid.CityCenterOffsetIndex)
 						{
-							if ((this.parent.GameData.MapVisibility[city.Position.X + this.parent.CityOffsets[outsideUnitIndex].X, city.Position.Y + this.parent.CityOffsets[outsideUnitIndex].Y] &
-								(1 << this.Var_6548_PlayerID)) != 0)
+							if ((this.parent.GameData.MapVisibility[
+								this.parent.MapManagement.AdjustXPosition(city.Position.X + cityOffsets[outsideUnitIndex].X),
+								city.Position.Y + cityOffsets[outsideUnitIndex].Y] & (1 << this.Var_6548_PlayerID)) != 0)
 							{
 								this.parent.Var_70da_Arr[1] = temp1;
 								this.parent.Var_70da_Arr[2] = temp2;
 
 								if ((city.WorkerFlags & (1 << outsideUnitIndex)) != 0 ||
-									!cityArea[this.parent.CityOffsets[outsideUnitIndex].X + 2, this.parent.CityOffsets[outsideUnitIndex].Y + 2])
+									!cityArea[cityOffsets[outsideUnitIndex].X + 2, cityOffsets[outsideUnitIndex].Y + 2])
 								{
 									city.WorkerFlags ^= (uint)(1 << outsideUnitIndex);
 
@@ -3099,13 +3127,13 @@ namespace OpenCivOne
 										for (int i = 0; i < 3; i++)
 										{
 											this.parent.Var_70da_Arr[i] -= F0_1d12_6abc_GetCityResourceCount(this.Var_6548_PlayerID, this.Var_653e_CityID,
-												city.Position.X + this.parent.CityOffsets[outsideUnitIndex].X, city.Position.Y + this.parent.CityOffsets[outsideUnitIndex].Y, (CityResourceTypeEnum)i);
+												city.Position.X + cityOffsets[outsideUnitIndex].X, city.Position.Y + cityOffsets[outsideUnitIndex].Y, (CityResourceTypeEnum)i);
 										}
 
 										// Instruction address 0x1d12:0x5c69, size: 5
 										this.parent.MapManagement.F0_2aea_03ba_DrawCell(
-											city.Position.X + this.parent.CityOffsets[outsideUnitIndex].X,
-											city.Position.Y + this.parent.CityOffsets[outsideUnitIndex].Y);
+											city.Position.X + cityOffsets[outsideUnitIndex].X,
+											city.Position.Y + cityOffsets[outsideUnitIndex].Y);
 
 										this.parent.Var_e8b8++;
 										currentWorkingCitizenCount++;
@@ -3128,6 +3156,7 @@ namespace OpenCivOne
 				L5cc2:
 					this.parent.Var_d4cc_MapViewX = mapViewX;
 					this.parent.Var_d75e_MapViewY = mapViewY;
+					this.parent.Var_MapViewOffsetY = mapViewOffsetY;
 				}
 
 				if (flag == 0)
@@ -3421,9 +3450,10 @@ namespace OpenCivOne
 							this.parent.CAPI.RNG.Next(256 - ((this.parent.GameData.Players[this.Var_6548_PlayerID].DiscoveredTechnologyCount * this.parent.GameData.DifficultyLevel) / 2)))
 						{
 							// Instruction address 0x1d12:0x6549, size: 5
-							int cityOffsetIndex = this.parent.CAPI.RNG.Next(20);
-							int newX = this.parent.CityOffsets[cityOffsetIndex].X + cityX;
-							int newY = this.parent.CityOffsets[cityOffsetIndex].Y + cityY;
+							IReadOnlyList<GPoint> pollutionOffsets = this.parent.MapManagement.GetCityOffsets(cityX);
+							int cityOffsetIndex = this.parent.CAPI.RNG.Next(HexGrid.CityCenterOffsetIndex);
+							int newX = pollutionOffsets[cityOffsetIndex].X + cityX;
+							int newY = pollutionOffsets[cityOffsetIndex].Y + cityY;
 
 							// Instruction address 0x1d12:0x6581, size: 5
 							if (!this.parent.MapManagement.F0_2aea_1585_GetVisibleTerrainImprovements(newX, newY).HasFlag(TerrainImprovementFlagsEnum.Pollution) &&
@@ -3543,9 +3573,12 @@ namespace OpenCivOne
 		private int F0_1d12_000a_FindCityOffset(GPoint point)
 		{
 			// function body
-			for (int i = 0; i < 21; i++)
+			IReadOnlyList<GPoint> cityOffsets = this.parent.MapManagement.GetCityOffsets(
+				this.parent.GameData.Cities[this.Var_653e_CityID].Position.X);
+
+			for (int i = 0; i < cityOffsets.Count; i++)
 			{
-				if (this.parent.CityOffsets[i].Equals(point))
+				if (cityOffsets[i].Equals(point))
 				{
 					return i;
 				}
@@ -3565,10 +3598,16 @@ namespace OpenCivOne
 			//this.CPU.Log.EnterBlock($"F0_1d12_692d_CityResources({cityID}, {cityOffset}, {flag})");
 
 			// function body
-			int newX = this.parent.GameData.Cities[cityID].Position.X + this.parent.CityOffsets[cityOffset].X;
-			int newY = this.parent.GameData.Cities[cityID].Position.Y + this.parent.CityOffsets[cityOffset].Y;
+			City city = this.parent.GameData.Cities[cityID];
+			IReadOnlyList<GPoint> cityOffsets = this.parent.MapManagement.GetCityOffsets(city.Position.X);
+			int newX = city.Position.X + cityOffsets[cityOffset].X;
+			int newY = city.Position.Y + cityOffsets[cityOffset].Y;
 			int xStep = 0;
 			int totalResources = 0;
+
+			// Resource icons are drawn in the staggered cell, not in a square grid.
+			int cellScreenX = this.parent.MapManagement.GetCellScreenX(newX);
+			int cellScreenY = this.parent.MapManagement.GetCellScreenY(newX, newY);
 
 			if (flag == 1)
 			{
@@ -3618,8 +3657,7 @@ namespace OpenCivOne
 				{
 					// Instruction address 0x1d12:0x6a5d, size: 5
 					this.parent.Graphics.F0_VGA_0c3e_DrawBitmapToScreen(this.parent.Var_aa_Screen0_Rectangle,
-						161 + (this.parent.CityOffsets[cityOffset].X * 16) + xOffset,
-						57 + (this.parent.CityOffsets[cityOffset].Y * 16) + yOffset,
+						cellScreenX + 1 + xOffset, cellScreenY + 1 + yOffset,
 						this.parent.Array_d4ce[(int)cityResourceType + 8]);
 
 					if (xOffset < 8)
@@ -3640,8 +3678,7 @@ namespace OpenCivOne
 			{
 				// Instruction address 0x1d12:0x6aa8, size: 5
 				this.parent.Graphics.F0_VGA_0c3e_DrawBitmapToScreen(this.parent.Var_aa_Screen0_Rectangle,
-					165 + (this.parent.CityOffsets[cityOffset].X * 16),
-					61 + (this.parent.CityOffsets[cityOffset].Y * 16),
+					cellScreenX + 5, cellScreenY + 5,
 					this.parent.Array_d4ce[13]);
 			}
 

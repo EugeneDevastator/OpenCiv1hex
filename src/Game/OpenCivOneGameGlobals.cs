@@ -7,13 +7,8 @@ namespace OpenCivOne
 		#region Global variables
 		public GSize ScreenSize = new GSize(320, 200);
 
-		public GPoint[] CityOffsets = { 
-			new GPoint(0, -1), new GPoint(1, 0), new GPoint(0, 1), new GPoint(-1, 0), 
-			new GPoint(1, -1), new GPoint(1, 1), new GPoint(-1, 1), new GPoint(-1, -1), 
-			new GPoint(0, -2), new GPoint(2, 0), new GPoint(0, 2), new GPoint(-2, 0), 
-			new GPoint(-1, -2), new GPoint(1, -2), new GPoint(2, -1), new GPoint(2, 1),
-			new GPoint(1, 2), new GPoint(-1, 2), new GPoint(-2, 1), new GPoint(-2, -1), 
-			new GPoint(0, 0) }; // size is 21
+		// City workable tiles are resolved per city with MapManagement.GetCityOffsets(),
+		// because their offsets depend on the column stagger of the hex map.
 
 		public GPoint[] MoveDirections = {
 			new GPoint(0, 0), new GPoint(0, -1), new GPoint(1, -1), // 1
@@ -197,6 +192,13 @@ namespace OpenCivOne
 		public int Var_d4cc_MapViewX = 0;
 		/// <summary>Y coordinate of the top left cell in map view</summary>
 		public int Var_d75e_MapViewY = 0;
+
+		/// <summary>
+		/// Extra pixel offset applied when drawing the map view. Screens that show a
+		/// small part of the staggered map (the city screen) use it to keep the
+		/// preview aligned with the original square-grid panel.
+		/// </summary>
+		public int Var_MapViewOffsetY = 0;
 
 		public int Var_6ed6_MiniMapX = 0;
 		public int Var_70ea_MiniMapY = 0;

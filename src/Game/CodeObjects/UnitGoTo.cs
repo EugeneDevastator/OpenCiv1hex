@@ -329,6 +329,9 @@ namespace OpenCivOne
 				{
 					for (int i = 1; i < 9; i++)
 					{
+						if (!map.IsValidHexDirection(unit.Position.X, i))
+							continue;
+
 						GPoint newPosition = unit.Position + moveDirections[i];
 
 						if (map.ValidateMapCoordinates(newPosition) && 
@@ -344,6 +347,9 @@ namespace OpenCivOne
 				{
 					for (int i = 1; i < 9; i++)
 					{
+						if (!map.IsValidHexDirection(unit.Position.X, i))
+							continue;
+
 						GPoint newPosition = unit.Position + moveDirections[i];
 
 						if (map.ValidateMapCoordinates(newPosition) && 
@@ -434,7 +440,7 @@ namespace OpenCivOne
 					{
 						for (int j = -1; j <= 1 && !destinationReached; j++)
 						{
-							if (i == 0 && j == 0)
+							if (!HexGrid.IsValidOffset(map.AdjustXPosition(pos.X), j, i))
 								continue;
 
 							GPoint newPos = pos.Offset(j, i);

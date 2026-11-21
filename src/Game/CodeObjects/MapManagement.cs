@@ -184,14 +184,21 @@ namespace OpenCivOne
 				//Thread.Sleep(2);
 			}//*/
 
+			// The staggered columns need half a row more than the original square map,
+			// so start one row above the view and let the top menu cover the overdraw.
 			for (int i = 0; i < 15; i++)
 			{
-				for (int j = 0; j < 12; j++)
-				{
-					int mapX = this.parent.MapManagement.AdjustXPosition(this.parent.Var_d4cc_MapViewX + i);
-					int mapY = this.parent.Var_d75e_MapViewY + j;
+				int mapX = this.parent.MapManagement.AdjustXPosition(this.parent.Var_d4cc_MapViewX + i);
+				int screenX = 80 + (i * HexGrid.ColumnWidth);
+				int stagger = HexGrid.ColumnPixelOffset(mapX);
 
-					if (this.parent.GlobalPreferences.Debug.DebugMode || (this.parent.GameData.MapVisibility[mapX, mapY] & mapPlayerVisibilityMask) != 0)
+				for (int j = -1; j < 12; j++)
+				{
+					int mapY = this.parent.Var_d75e_MapViewY + j;
+					int screenY = 8 + (j * HexGrid.RowHeight) + stagger;
+
+					if (mapY >= 0 && mapY < MapManagement.MapSize.Height &&
+						(this.parent.GlobalPreferences.Debug.DebugMode || (this.parent.GameData.MapVisibility[mapX, mapY] & mapPlayerVisibilityMask) != 0))
 					{
 						// Instruction address 0x2aea:0x0122, size: 3
 						F0_2aea_11d4_DrawCellWithUnit(mapX, mapY);
@@ -199,10 +206,13 @@ namespace OpenCivOne
 					else
 					{
 						// Instruction address 0x2aea:0x0094, size: 5
-						this.parent.DrawTools.FillRectangle(this.parent.Var_aa_Screen0_Rectangle, 80 + (i * 16), 8 + (j * 16), 16, 16, 0);
+						this.parent.DrawTools.FillRectangle(this.parent.Var_aa_Screen0_Rectangle, screenX, screenY, 16, 16, 0);
 					}
 				}
 			}
+
+			// The staggered top row draws over the menu bar; restore it.
+			this.parent.Menus.F0_1238_0fea_DrawMainMenu();
 
 			// Draw city names
 			for (int i = 0; i < this.VisibleCities.Count; i++)
@@ -330,10 +340,10 @@ namespace OpenCivOne
 
 			// function body
 			// Tile position in screen coordinates
-			int scrX = this.parent.MapManagement.AdjustXPosition(x - this.parent.Var_d4cc_MapViewX) * 16 + 80;
-			int scrY = (y - this.parent.Var_d75e_MapViewY) * 16 + 8;
+			int scrX = this.parent.MapManagement.GetCellScreenX(x);
+			int scrY = this.parent.MapManagement.GetCellScreenY(x, y);
 
-			if (scrX < 80 || scrX >= 320 || scrY < 8 || scrY > 192)
+			if (scrX < 80 || scrX >= 320 || scrY < 0 || scrY >= 200)
 			{
 				// if cells screen coordinates are outside of actual screen
 
@@ -716,10 +726,10 @@ namespace OpenCivOne
 				return false;
 			}
 
-			int x = this.parent.MapManagement.AdjustXPosition(unit.Position.X - this.parent.Var_d4cc_MapViewX) * 16 + 80;
-			int y = (unit.Position.Y - this.parent.Var_d75e_MapViewY) * 16 + 8;
+			int x = this.parent.MapManagement.GetCellScreenX(unit.Position.X);
+			int y = this.parent.MapManagement.GetCellScreenY(unit.Position.X, unit.Position.Y);
 
-			if (x >= 80 && x < 320 && y >= 8 && y < 193)
+			if (x >= 80 && x < 320 && y > -16 && y < 200)
 			{
 				if ((unit.Status & UnitStatusEnum.Sentry) == UnitStatusEnum.None || GetTerrainType(unit.Position.X, unit.Position.Y) != TerrainTypeEnum.Water ||
 					this.parent.GameData.Units[(int)unit.UnitType].MovementType == UnitMovementTypeEnum.Water)
@@ -968,6 +978,177 @@ namespace OpenCivOne
 			// function body
 			return ValidateMapCoordinates(pt.X, pt.Y);
 		}
+
+		#region Hex grid helpers
+		/// <summary>
+		/// True if the given direction index is one of the six hex neighbours of the
+		/// cell in the given column.
+		/// </summary>
+		public bool IsValidHexDirection(int x, int directionIndex)
+		{
+			return HexGrid.IsValidDirection(AdjustXPosition(x), directionIndex);
+		}
+
+		/// <summary>
+		/// The six direction indices that lead to a neighbour of the cell in the
+		/// given column.
+		/// </summary>
+		public IEnumerable<int> GetValidHexDirections(int x)
+		{
+			return HexGrid.GetDirectionIndices(AdjustXPosition(x));
+		}
+
+		/// <summary>
+		/// The six neighbours of a map cell.
+		/// </summary>
+		public IEnumerable<GPoint> GetHexNeighbors(int x, int y)
+		{
+			foreach (int directionIndex in GetValidHexDirections(x))
+			{
+				GPoint direction = this.parent.MoveDirections[directionIndex];
+
+				yield return new GPoint(AdjustXPosition(x + direction.X), y + direction.Y);
+			}
+		}
+
+		/// <summary>
+		/// All cells exactly <paramref name="radius"/> hex steps away from a map cell.
+		/// </summary>
+		public IEnumerable<GPoint> GetHexRing(GPoint center, int radius)
+		{
+			if (radius <= 0)
+			{
+				yield return center;
+				yield break;
+			}
+
+			for (int dx = -radius; dx <= radius; dx++)
+			{
+				for (int dy = -radius; dy <= radius; dy++)
+				{
+					int x = center.X + dx;
+					int y = center.Y + dy;
+
+					if (y < 0 || y >= MapManagement.MapSize.Height)
+					{
+						continue;
+					}
+
+					if (HexGrid.Distance(center.X, center.Y, x, y) == radius)
+					{
+						yield return new GPoint(AdjustXPosition(x), y);
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// All cells between one and <paramref name="distance"/> hex steps away from a
+		/// map cell.
+		/// </summary>
+		public IEnumerable<GPoint> GetHexCellsWithin(GPoint center, int distance)
+		{
+			for (int radius = 1; radius <= distance; radius++)
+			{
+				foreach (GPoint cell in GetHexRing(center, radius))
+				{
+					yield return cell;
+				}
+			}
+		}
+
+		/// <summary>
+		/// The workable tile offsets of a city in the given column. The offsets
+		/// depend on the column stagger, so they are resolved per city.
+		/// </summary>
+		public IReadOnlyList<GPoint> GetCityOffsets(int cityX)
+		{
+			return HexGrid.GetCityOffsets(AdjustXPosition(cityX));
+		}
+
+		/// <summary>
+		/// Hex distance between two cells, taking the horizontal map wrap into
+		/// account.
+		/// </summary>
+		public int GetHexDistance(GPoint pt1, GPoint pt2)
+		{
+			return HexGrid.WrappedDistance(pt1.X, pt1.Y, pt2.X, pt2.Y, MapManagement.MapSize.Width);
+		}
+
+		/// <summary>
+		/// Returns the direction index that steps from one cell to an adjacent cell,
+		/// or -1 when the cells are not neighbours. Handles the horizontal map wrap.
+		/// </summary>
+		public int GetHexDirection(GPoint from, GPoint to)
+		{
+			GPoint offset = GetDistanceOffset(from, to);
+
+			return HexGrid.GetDirectionIndex(AdjustXPosition(from.X), offset.X, offset.Y);
+		}
+
+		/// <summary>
+		/// Screen X coordinate of the top-left corner of a map cell.
+		/// </summary>
+		public int GetCellScreenX(int mapX)
+		{
+			return AdjustXPosition(mapX - this.parent.Var_d4cc_MapViewX) * HexGrid.ColumnWidth + 80;
+		}
+
+		/// <summary>
+		/// Screen Y coordinate of the top-left corner of a map cell. Every odd
+		/// column is shifted down by half a cell.
+		/// </summary>
+		public int GetCellScreenY(int mapX, int mapY)
+		{
+			return (mapY - this.parent.Var_d75e_MapViewY) * HexGrid.RowHeight + 8 +
+				HexGrid.ColumnPixelOffset(AdjustXPosition(mapX)) +
+				this.parent.Var_MapViewOffsetY;
+		}
+
+		/// <summary>
+		/// Converts a screen position to the map cell under it, using the nearest
+		/// cell centre. The staggered columns overlap vertically, so pick the cell
+		/// whose centre is closest.
+		/// </summary>
+		public GPoint GetCellFromScreen(GPoint screenPos)
+		{
+			int baseColumn = (int)Math.Floor((screenPos.X - 80) / (double)HexGrid.ColumnWidth);
+
+			int bestX = 0;
+			int bestY = 0;
+			double bestDistanceSquared = double.MaxValue;
+
+			for (int columnOffset = -1; columnOffset <= 1; columnOffset++)
+			{
+				int column = baseColumn + columnOffset;
+				int mapX = AdjustXPosition(column + this.parent.Var_d4cc_MapViewX);
+				int screenX = 80 + column * HexGrid.ColumnWidth;
+				int stagger = HexGrid.ColumnPixelOffset(mapX);
+				int rowStartY = 8 + stagger + this.parent.Var_MapViewOffsetY;
+				int baseRow = (int)Math.Floor((screenPos.Y - rowStartY) / (double)HexGrid.RowHeight);
+
+				for (int rowOffset = -1; rowOffset <= 1; rowOffset++)
+				{
+					int row = baseRow + rowOffset;
+					int mapY = row + this.parent.Var_d75e_MapViewY;
+
+					double centerX = screenX + HexGrid.ColumnWidth / 2.0;
+					double centerY = rowStartY + row * HexGrid.RowHeight + HexGrid.RowHeight / 2.0;
+					double distanceSquared = ((screenPos.X - centerX) * (screenPos.X - centerX)) +
+						((screenPos.Y - centerY) * (screenPos.Y - centerY));
+
+					if (distanceSquared < bestDistanceSquared)
+					{
+						bestDistanceSquared = distanceSquared;
+						bestX = mapX;
+						bestY = Math.Clamp(mapY, 0, MapManagement.MapSize.Height - 1);
+					}
+				}
+			}
+
+			return new GPoint(bestX, bestY);
+		}
+		#endregion
 
 		/// <summary>
 		/// Returns terrain type at specified map coordinates.
@@ -1576,7 +1757,7 @@ namespace OpenCivOne
 		/// <returns>The shortest distance (number of moves in a two dimensional space)</returns>
 		public int GetDistance(GPoint pt1, GPoint pt2)
 		{
-			return GetDistance(new GSize(GetDistanceOffset(pt1, pt2)));
+			return GetHexDistance(pt1, pt2);
 		}
 
 		/// <summary>

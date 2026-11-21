@@ -11,9 +11,18 @@ namespace OpenCivOne
 		/// SynchronizationContext-reliant code before AppMain is called: things aren't initialized
 		/// yet and stuff might break.
 		/// </summary>
-		public static void Main(string[] args) =>
-			BuildAvaloniaApp()
+		public static int Main(string[] args)
+		{
+			// A game process that did not shut down cleanly keeps the executable locked.
+			// Offer to force kill it before Avalonia and the game are initialized.
+			if (!RunningInstanceGuard.ConfirmAndStopOtherInstances())
+			{
+				return 1;
+			}
+
+			return BuildAvaloniaApp()
 				.StartWithClassicDesktopLifetime(args);
+		}
 
 		/// <summary>Avalonia configuration, don't remove; also used by visual designer.</summary>
 		public static AppBuilder BuildAvaloniaApp() =>

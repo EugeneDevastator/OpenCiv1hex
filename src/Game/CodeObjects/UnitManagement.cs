@@ -146,41 +146,56 @@ namespace OpenCivOne
 			TerrainTypeEnum terrainType = this.parent.MapManagement.GetTerrainType(x, y);
 			// Instruction address 0x1866:0x02b5, size: 5
 			TerrainImprovementFlagsEnum visibleTerrainImprovements = this.parent.MapManagement.F0_2aea_1585_GetVisibleTerrainImprovements(x, y);
+			GPoint center = new GPoint(x, y);
 
 			if (playerID == this.parent.GameData.HumanPlayerID)
 			{
-				for (int i = 0; i < 25; i++)
+				// The unit sees its own cell and the six hex neighbours.
+				foreach (GPoint innerCell in this.parent.MapManagement.GetHexNeighbors(x, y).Prepend(center))
 				{
-					GPoint direction = this.parent.MoveDirections[i];
-
-					// Instruction address 0x1866:0x0212, size: 5
-					int newX = this.parent.MapManagement.AdjustXPosition(x + direction.X);
-					int newY = y + direction.Y;
+					int newX = innerCell.X;
+					int newY = innerCell.Y;
 
 					if (!this.parent.MapManagement.ValidateMapCoordinates(newX, newY))
 						continue;
 
-					// Ships only see water tiles in the outer ring
-					if (i < 9 || ((this.parent.GameData.Units[(int)this.parent.GameData.Players[playerID].Units[unitID].UnitType].SightRange & 0x2) != 0 &&
-						(this.parent.GameData.Units[(int)this.parent.GameData.Players[playerID].Units[unitID].UnitType].MovementType != UnitMovementTypeEnum.Water ||
-						this.parent.MapManagement.GetTerrainType(newX, newY) == TerrainTypeEnum.Water)))
-					{
-						// Instruction address 0x1866:0x026c, size: 5
-						this.parent.GameData.MapVisibility[newX, newY] |= (ushort)(1 << playerID);
+					// Instruction address 0x1866:0x026c, size: 5
+					this.parent.GameData.MapVisibility[newX, newY] |= (ushort)(1 << playerID);
 
-						// Instruction address 0x1866:0x029b, size: 5
-						this.parent.MapManagement.F0_2aea_1601_UpdateVisibleCellStatus(newX, newY);
+					// Instruction address 0x1866:0x029b, size: 5
+					this.parent.MapManagement.F0_2aea_1601_UpdateVisibleCellStatus(newX, newY);
+				}
+
+				// The outer ring is only seen by units with extended sight. Ships only
+				// see water tiles in the outer ring.
+				if ((this.parent.GameData.Units[(int)this.parent.GameData.Players[playerID].Units[unitID].UnitType].SightRange & 0x2) != 0)
+				{
+					foreach (GPoint outerCell in this.parent.MapManagement.GetHexRing(center, 2))
+					{
+						int newX = outerCell.X;
+						int newY = outerCell.Y;
+
+						if (!this.parent.MapManagement.ValidateMapCoordinates(newX, newY))
+							continue;
+
+						if (this.parent.GameData.Units[(int)this.parent.GameData.Players[playerID].Units[unitID].UnitType].MovementType != UnitMovementTypeEnum.Water ||
+							this.parent.MapManagement.GetTerrainType(newX, newY) == TerrainTypeEnum.Water)
+						{
+							// Instruction address 0x1866:0x026c, size: 5
+							this.parent.GameData.MapVisibility[newX, newY] |= (ushort)(1 << playerID);
+
+							// Instruction address 0x1866:0x029b, size: 5
+							this.parent.MapManagement.F0_2aea_1601_UpdateVisibleCellStatus(newX, newY);
+						}
 					}
 				}
 			}
 
-			for (int i = 1; i < 9; i++)
+			foreach (GPoint neighborCell in this.parent.MapManagement.GetHexNeighbors(x, y))
 			{
-				GPoint direction = this.parent.MoveDirections[i];
-
 				// Instruction address 0x1866:0x0397, size: 5
-				int newX = this.parent.MapManagement.AdjustXPosition(x + direction.X);
-				int newY = y + direction.Y;
+				int newX = neighborCell.X;
+				int newY = neighborCell.Y;
 
 				// Instruction address 0x1866:0x03b0, size: 5
 				if (!this.parent.MapManagement.ValidateMapCoordinates(newX, newY))
@@ -330,13 +345,11 @@ namespace OpenCivOne
 				}
 			}
 
-			for (int i = 9; i < 25; i++)
+			foreach (GPoint outerCell in this.parent.MapManagement.GetHexRing(center, 2))
 			{
-				GPoint direction = this.parent.MoveDirections[i];
-
 				// Instruction address 0x1866:0x08d2, size: 5
-				int newX = this.parent.MapManagement.AdjustXPosition(x + direction.X);
-				int newY = y + direction.Y;
+				int newX = outerCell.X;
+				int newY = outerCell.Y;
 
 				// Instruction address 0x1866:0x08eb, size: 5
 				if (this.parent.MapManagement.ValidateMapCoordinates(newX, newY))
@@ -447,13 +460,12 @@ namespace OpenCivOne
 				// Instruction address 0x1866:0x0a59, size: 5
 				this.parent.MapManagement.F0_2aea_11d4_DrawCellWithUnit(x, y);
 
-				for (int i = 9; i < 49; i++)
+				foreach (GPoint redrawCell in this.parent.MapManagement.GetHexRing(center, 2)
+					.Concat(this.parent.MapManagement.GetHexRing(center, 3)))
 				{
-					GPoint direction = this.parent.MoveDirections[i];
-
 					// Instruction address 0x1866:0x0a73, size: 5
-					int newX = this.parent.MapManagement.AdjustXPosition(x + direction.X);
-					int newY = y + direction.Y;
+					int newX = redrawCell.X;
+					int newY = redrawCell.Y;
 
 					// Instruction address 0x1866:0x0a8c, size: 5
 					if (this.parent.MapManagement.ValidateMapCoordinates(newX, newY) &&
@@ -485,10 +497,10 @@ namespace OpenCivOne
 			if (xOffset != -1)
 			{
 				// Instruction address 0x1866:0x0af0, size: 5
-				xScreen = this.parent.MapManagement.AdjustXPosition(xOffset - this.parent.Var_d4cc_MapViewX) * 16 + 80;
-				yScreen = (yOffset - this.parent.Var_d75e_MapViewY) * 16 + 8;
+				xScreen = this.parent.MapManagement.GetCellScreenX(xOffset);
+				yScreen = this.parent.MapManagement.GetCellScreenY(xOffset, yOffset);
 
-				if (xScreen < 80 || xScreen >= 320 || yScreen < 8 || yScreen > 192)
+				if (xScreen < 80 || xScreen >= 320 || yScreen < 0 || yScreen >= 200)
 				{
 					xScreen = -1;
 				}				
@@ -1366,12 +1378,10 @@ namespace OpenCivOne
 			// function body
 			TerrainTypeEnum terrainType = this.parent.MapManagement.GetTerrainType(x, y);
 
-			for(int i = 1; i < 9; i++)
+			foreach (GPoint neighborCell in this.parent.MapManagement.GetHexNeighbors(x, y))
 			{
-				GPoint direction = this.parent.MoveDirections[i];
-
-				int newX = this.parent.MapManagement.AdjustXPosition(x + direction.X);
-				int newY = y + direction.Y;
+				int newX = neighborCell.X;
+				int newY = neighborCell.Y;
 
 				if (this.parent.MapManagement.ValidateMapCoordinates(newX, newY) &&
 					((this.parent.MapManagement.GetTerrainType(newX, newY) == TerrainTypeEnum.Water) ? 1 : 0) == ((terrainType == TerrainTypeEnum.Water) ? 1 : 0))
@@ -1425,29 +1435,22 @@ namespace OpenCivOne
 		public bool IsEnemyUnitNear(int playerID, int x, int y, int distance)
 		{
 			ushort playerBitmask = (ushort)(0x1 << playerID);
-			GPoint[] moveDirections = this.parent.MoveDirections;
 			MapManagement mapManagement = this.parent.MapManagement;
 
-			if (distance != 0)
+			if (distance <= 0)
 			{
-				for (int i = -distance; i < distance; i++)
+				return false;
+			}
+
+			foreach (GPoint cell in mapManagement.GetHexCellsWithin(new GPoint(x, y), distance))
+			{
+				int unitPlayerID = mapManagement.F0_2aea_14e0_GetCellActiveUnitPlayerID(cell.X, cell.Y);
+				int unitID = mapManagement.F0_2aea_1458_GetCellActiveUnitID(cell.X, cell.Y);
+
+				if (unitPlayerID != -1 && unitID != -1 && unitPlayerID != playerID &&
+					(this.parent.GameData.Players[unitPlayerID].Units[unitID].VisibleByPlayer & playerBitmask) != 0)
 				{
-					for (int j = -distance; j < distance; j++)
-					{
-						if (i == 0 && j == 0)
-							continue;
-
-						int newX = x + i;
-						int newY = y + j;
-						int unitPlayerID = mapManagement.F0_2aea_14e0_GetCellActiveUnitPlayerID(newX, newY);
-						int unitID = mapManagement.F0_2aea_1458_GetCellActiveUnitID(newX, newY);
-
-						if (unitPlayerID != -1 && unitID != -1 && unitPlayerID != playerID &&
-							(this.parent.GameData.Players[unitPlayerID].Units[unitID].VisibleByPlayer & playerBitmask) != 0)
-						{
-							return true;
-						}
-					}
+					return true;
 				}
 			}
 
@@ -1457,36 +1460,31 @@ namespace OpenCivOne
 		public bool IsEnemyCityNear(int playerID, int x, int y, int distance)
 		{
 			ushort playerBitmask = (ushort)(0x1 << playerID);
-			GPoint[] moveDirections = this.parent.MoveDirections;
 			MapManagement mapManagement = this.parent.MapManagement;
 
-			if (distance != 0)
+			if (distance <= 0)
 			{
-				for (int i = -distance; i < distance; i++)
+				return false;
+			}
+
+			foreach (GPoint cell in mapManagement.GetHexCellsWithin(new GPoint(x, y), distance))
+			{
+				int newX = cell.X;
+				int newY = cell.Y;
+				int cityID;
+
+				// The map only wraps horizontally, so the vertical coordinate can fall
+				// outside the map when searching near the poles. There is nothing above the
+				// north or below the south edge, so skip those cells.
+				if (newY < 0 || newY >= this.parent.GameData.MapVisibility.GetLength(1))
+					continue;
+
+				if ((this.parent.GameData.MapVisibility[newX, newY] & playerBitmask) != 0 &&
+					mapManagement.F0_2aea_1585_GetVisibleTerrainImprovements(newX, newY).HasFlag(TerrainImprovementFlagsEnum.City) &&
+					(cityID = this.parent.MapManagement.GetCityByLocation(newX, newY)) != -1 &&
+					this.parent.GameData.Cities[cityID].PlayerID != playerID)
 				{
-					for (int j = -distance; j < distance; j++)
-					{
-						if (i == 0 && j == 0)
-							continue;
-
-						int newX = this.parent.MapManagement.AdjustXPosition(x + i);
-						int newY = y + j;
-						int cityID;
-
-						// The map only wraps horizontally, so unlike newX the vertical coordinate
-						// can fall outside the map when searching near the poles. There is nothing
-						// above the north or below the south edge, so skip those cells.
-						if (newY < 0 || newY >= this.parent.GameData.MapVisibility.GetLength(1))
-							continue;
-
-						if ((this.parent.GameData.MapVisibility[newX, newY] & playerBitmask) != 0 &&
-							mapManagement.F0_2aea_1585_GetVisibleTerrainImprovements(newX, newY).HasFlag(TerrainImprovementFlagsEnum.City) &&
-							(cityID = this.parent.MapManagement.GetCityByLocation(newX, newY)) != -1 &&
-							this.parent.GameData.Cities[cityID].PlayerID != playerID)
-						{
-							return true;
-						}
-					}
+					return true;
 				}
 			}
 
@@ -1505,13 +1503,11 @@ namespace OpenCivOne
 			//this.oCPU.Log.EnterBlock($"F0_1866_18d0({playerID}, {x}, {y})");
 
 			// function body
-			for (int i = 1; i < 9; i++)
+			foreach (GPoint neighborCell in this.parent.MapManagement.GetHexNeighbors(x, y))
 			{
-				GPoint direction = this.parent.MoveDirections[i];
-
 				// Instruction address 0x1866:0x18f4, size: 5
-				int newX = this.parent.MapManagement.AdjustXPosition(x + direction.X);
-				int newY = y + direction.Y;
+				int newX = neighborCell.X;
+				int newY = neighborCell.Y;
 
 				if (this.parent.MapManagement.ValidateMapCoordinates(newX, newY))
 				{
@@ -1786,14 +1782,26 @@ namespace OpenCivOne
 
 			// function body
 			GPoint direction = this.parent.MoveDirections[moveDirection];
+			GPoint unitPosition = this.parent.GameData.Players[playerID].Units[unitID].Position;
+
+			// On a hex map a diagonal step moves half a cell vertically, so the
+			// animation must follow the staggered cell centres rather than the raw
+			// direction vector.
+			GPoint fromScreen = new GPoint(
+				this.parent.MapManagement.AdjustXPosition(unitPosition.X) * HexGrid.ColumnWidth,
+				unitPosition.Y * HexGrid.RowHeight + HexGrid.ColumnPixelOffset(this.parent.MapManagement.AdjustXPosition(unitPosition.X)));
+			GPoint toScreen = new GPoint(
+				this.parent.MapManagement.AdjustXPosition(unitPosition.X + direction.X) * HexGrid.ColumnWidth,
+				(unitPosition.Y + direction.Y) * HexGrid.RowHeight + HexGrid.ColumnPixelOffset(this.parent.MapManagement.AdjustXPosition(unitPosition.X + direction.X)));
+
+			int pixelStepX = toScreen.X - fromScreen.X;
+			int pixelStepY = toScreen.Y - fromScreen.Y;
 
 			// Instruction address 0x1866:0x1dae, size: 5
-			if (this.parent.MapManagement.F0_2aea_03ba_DrawCell(this.parent.GameData.Players[playerID].Units[unitID].Position.X,
-					this.parent.GameData.Players[playerID].Units[unitID].Position.Y) &&
-				this.parent.PlayerTurn.F0_1403_4508_ValidateMapCoordinates(this.parent.GameData.Players[playerID].Units[unitID].Position.X,
-					this.parent.GameData.Players[playerID].Units[unitID].Position.Y) &&
-				this.parent.PlayerTurn.F0_1403_4508_ValidateMapCoordinates(this.parent.GameData.Players[playerID].Units[unitID].Position.X + direction.X,
-					this.parent.GameData.Players[playerID].Units[unitID].Position.Y + direction.Y))
+			if (this.parent.MapManagement.IsValidHexDirection(unitPosition.X, moveDirection) &&
+				this.parent.MapManagement.F0_2aea_03ba_DrawCell(unitPosition.X, unitPosition.Y) &&
+				this.parent.PlayerTurn.F0_1403_4508_ValidateMapCoordinates(unitPosition.X, unitPosition.Y) &&
+				this.parent.PlayerTurn.F0_1403_4508_ValidateMapCoordinates(unitPosition.X + direction.X, unitPosition.Y + direction.Y))
 			{
 				// An empty slot in the stack chain has UnitType None (-1); Units[-1] throws in C#
 				if (this.parent.GameData.Players[playerID].Units[unitID].NextUnitID != -1 &&
@@ -1810,8 +1818,8 @@ namespace OpenCivOne
 				this.parent.Graphics.F0_VGA_07d8_DrawImage(this.parent.Var_aa_Screen0_Rectangle, 80, 0, 240, 200, this.parent.Var_19d4_Screen1_Rectangle, 80, 0);
 
 				// Instruction address 0x1866:0x1ea2, size: 5
-				int mapX = this.parent.MapManagement.AdjustXPosition(this.parent.GameData.Players[playerID].Units[unitID].Position.X - this.parent.Var_d4cc_MapViewX) * 16 + 80;
-				int mapY = (this.parent.GameData.Players[playerID].Units[unitID].Position.Y - this.parent.Var_d75e_MapViewY) * 16 + 8;
+				int mapX = this.parent.MapManagement.GetCellScreenX(unitPosition.X);
+				int mapY = this.parent.MapManagement.GetCellScreenY(unitPosition.X, unitPosition.Y);
 
 				if (this.parent.GlobalPreferences.Debug.FastMode)
 				{
@@ -1819,14 +1827,14 @@ namespace OpenCivOne
 					{
 						// Instruction address 0x1866:0x1f0a, size: 5
 						this.parent.Graphics.F0_VGA_0c3e_DrawBitmapToScreen(this.parent.Var_aa_Screen0_Rectangle,
-							mapX + (direction.X * i) + 1, mapY + (direction.Y * i) + 1,
+							mapX + (pixelStepX * i / 16) + 1, mapY + (pixelStepY * i / 16) + 1,
 							this.parent.Array_d4ce[64 + (int)this.parent.GameData.Players[playerID].Units[unitID].UnitType + (playerID * 32)]);
 
 						// Instruction address 0x1866:0x1f16, size: 5
 						this.parent.CommonTools.WaitTimer(1);
 
-						int newX = mapX + direction.X * i;
-						int newY = mapY + direction.Y * i;
+						int newX = mapX + (pixelStepX * i / 16);
+						int newY = mapY + (pixelStepY * i / 16);
 
 						// Instruction address 0x1866:0x1f4a, size: 5
 						this.parent.Graphics.F0_VGA_07d8_DrawImage(this.parent.Var_19d4_Screen1_Rectangle, newX, newY, 16, 16, this.parent.Var_aa_Screen0_Rectangle, newX, newY);
@@ -1838,14 +1846,14 @@ namespace OpenCivOne
 					{
 						// Instruction address 0x1866:0x1f0a, size: 5
 						this.parent.Graphics.F0_VGA_0c3e_DrawBitmapToScreen(this.parent.Var_aa_Screen0_Rectangle,
-							mapX + (direction.X * i) + 1, mapY + (direction.Y * i) + 1,
+							mapX + (pixelStepX * i / 16) + 1, mapY + (pixelStepY * i / 16) + 1,
 							this.parent.Array_d4ce[64 + (int)this.parent.GameData.Players[playerID].Units[unitID].UnitType + (playerID * 32)]);
 
 						// Instruction address 0x1866:0x1f16, size: 5
 						this.parent.CommonTools.WaitTimer(1);
 
-						int newX = mapX + direction.X * i;
-						int newY = mapY + direction.Y * i;
+						int newX = mapX + (pixelStepX * i / 16);
+						int newY = mapY + (pixelStepY * i / 16);
 
 						// Instruction address 0x1866:0x1f4a, size: 5
 						this.parent.Graphics.F0_VGA_07d8_DrawImage(this.parent.Var_19d4_Screen1_Rectangle, newX, newY, 16, 16, this.parent.Var_aa_Screen0_Rectangle, newX, newY);
@@ -2036,11 +2044,13 @@ namespace OpenCivOne
 
 			// Instruction address 0x1866:0x244c, size: 5
 			minDistance = this.parent.MapManagement.GetDistance(
-				this.parent.GameData.Players[playerID].Units[unitID].Position.X - x,
-				this.parent.GameData.Players[playerID].Units[unitID].Position.Y - y);
+				this.parent.GameData.Players[playerID].Units[unitID].Position, new GPoint(x, y));
 
 			for (int i = 1; i < 9; i++)
 			{
+				if (!this.parent.MapManagement.IsValidHexDirection(this.parent.GameData.Players[playerID].Units[unitID].Position.X, i))
+					continue;
+
 				GPoint direction = this.parent.MoveDirections[i];
 
 				int newX = this.parent.GameData.Players[playerID].Units[unitID].Position.X + direction.X;
@@ -2059,7 +2069,7 @@ namespace OpenCivOne
 							this.parent.MapManagement.F0_2aea_1369_GetCityOwner(newX, newY) == playerID)
 						{
 							// Instruction address 0x1866:0x24da, size: 5
-							distance = this.parent.MapManagement.GetDistance(newX - x, newY - y);
+							distance = this.parent.MapManagement.GetDistance(new GPoint(x, y), new GPoint(newX, newY));
 
 							if (distance < minDistance)
 							{

@@ -922,12 +922,13 @@ namespace OpenCivOne
 					if (terrainType == TerrainTypeEnum.River || terrainType == TerrainTypeEnum.Grassland || terrainType == TerrainTypeEnum.Plains)
 					{
 						int totalLocationScore = 0;
+						IReadOnlyList<GPoint> cityOffsets = HexGrid.GetCityOffsets(i);
 
-						for (int k = 0; k < 21; k++)
+						for (int k = 0; k < HexGrid.CityOffsetCount; k++)
 						{
 							int locationScore = 0;
-							int newX = this.parent.CityOffsets[k].X + i;
-							int newY = this.parent.CityOffsets[k].Y + j;
+							int newX = cityOffsets[k].X + i;
+							int newY = cityOffsets[k].Y + j;
 
 							terrainType = this.map.GetTerrainType(newX, newY);
 
@@ -946,7 +947,7 @@ namespace OpenCivOne
 
 							locationScore += terrainCoefficients[(int)terrainType];
 
-							if (k < 9)
+							if (k < 6)
 							{
 								locationScore += locationScore;
 							}

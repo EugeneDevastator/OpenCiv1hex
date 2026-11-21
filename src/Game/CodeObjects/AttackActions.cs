@@ -226,19 +226,14 @@ namespace OpenCivOne
 					this.parent.Graphics.F0_VGA_07d8_DrawImage(this.parent.Var_aa_Screen0_Rectangle, 80, 0, 240, 200, this.parent.Var_19d4_Screen1_Rectangle, 80, 0);
 
 					// Instruction address 0x29f3:0x052d, size: 5
-					int newXWindow = this.parent.MapManagement.AdjustXPosition(this.parent.GameData.Players[playerID1].Units[unitID1].Position.X - this.parent.Var_d4cc_MapViewX) * 16 + 80;
-					int newYWindow = (this.parent.GameData.Players[playerID1].Units[unitID1].Position.Y - this.parent.Var_d75e_MapViewY) * 16 + 8;
+					GPoint attackerPosition = this.parent.GameData.Players[playerID1].Units[unitID1].Position;
+					GPoint defenderPosition = this.parent.GameData.Players[playerID2].Units[unitID2].Position;
+					int newXWindow = this.parent.MapManagement.GetCellScreenX(attackerPosition.X);
+					int newYWindow = this.parent.MapManagement.GetCellScreenY(attackerPosition.X, attackerPosition.Y);
 
-					int xStep = Math.Sign(this.parent.GameData.Players[playerID2].Units[unitID2].Position.X - this.parent.GameData.Players[playerID1].Units[unitID1].Position.X);
-					int yStep = Math.Sign(this.parent.GameData.Players[playerID2].Units[unitID2].Position.Y - this.parent.GameData.Players[playerID1].Units[unitID1].Position.Y);
-
-					if ((this.parent.GameData.Players[playerID1].Units[unitID1].Position.X == 0 &&
-						this.parent.GameData.Players[playerID2].Units[unitID2].Position.X == 79) ||
-						(this.parent.GameData.Players[playerID2].Units[unitID2].Position.X == 0 &&
-						this.parent.GameData.Players[playerID1].Units[unitID1].Position.X == 79))
-					{
-						xStep = -xStep;
-					}
+					GPoint attackOffset = this.parent.MapManagement.GetDistanceOffset(attackerPosition, defenderPosition);
+					int xStep = Math.Sign(attackOffset.X);
+					int yStep = Math.Sign(attackOffset.Y);
 
 					if (this.parent.GlobalPreferences.Debug.FastMode)
 					{
@@ -444,6 +439,10 @@ namespace OpenCivOne
 					{
 						for (int i = 8; i >= 0; i--)
 						{
+							if (i != 0 && !this.parent.MapManagement.IsValidHexDirection(
+								this.parent.GameData.Players[playerID2].Units[unitID2].Position.X, i))
+								continue;
+
 							GPoint direction = this.parent.MoveDirections[i];
 
 							int newX = this.parent.GameData.Players[playerID2].Units[unitID2].Position.X + direction.X;

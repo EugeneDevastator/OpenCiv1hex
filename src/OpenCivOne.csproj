@@ -116,5 +116,15 @@
   <ItemGroup>
     <None Include=".editorconfig" />
   </ItemGroup>
-	
+
+  <!--
+    A game process that did not shut down cleanly keeps the executable locked.
+    Ask the user to force kill it before building so the output can be replaced.
+    On CI (no interactive user) the script kills the process without a prompt.
+  -->
+  <Target Name="StopRunningOpenCivOne" BeforeTargets="Build"
+    Condition="'$(OS)' == 'Windows_NT' and '$(SkipStopRunningOpenCivOne)' != 'true'">
+    <Exec Command="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\tools\KillRunningInstances.ps1&quot; -Prompt" />
+  </Target>
+
 </Project>

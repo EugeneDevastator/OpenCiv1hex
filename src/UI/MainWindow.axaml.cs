@@ -82,6 +82,9 @@ namespace OpenCivOne.UI
 			// Initialize game thread where we have all the fun ;)
 			this.gameThread = new Thread(new ThreadStart(GameThread));
 			this.gameThread.Name = "OpenCivOne game thread";
+			// A background thread cannot keep the process alive after the window is closed,
+			// even when the emulated program is stuck waiting for input.
+			this.gameThread.IsBackground = true;
 			this.gameThread.Start();
 		}
 
@@ -573,6 +576,14 @@ namespace OpenCivOne.UI
 				{
 					this.closing = true;
 					this.game.CPU.OnApplicationExit();
+
+					// Safety net: if the emulated program (or a pending native call) refuses to
+					// return, make sure the process does not stay alive and lock the executable.
+					ThreadPool.QueueUserWorkItem(_ =>
+					{
+						Thread.Sleep(4000);
+						Environment.Exit(0);
+					});
 				}
 				else
 				{

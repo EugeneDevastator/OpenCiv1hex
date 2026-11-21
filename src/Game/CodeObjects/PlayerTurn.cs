@@ -324,8 +324,9 @@ namespace OpenCivOne
 				goto Label151;
 			}
 
-			int mouseX = this.parent.MapManagement.AdjustXPosition(((mouseEvent.Position.X - 80) / 16) + this.parent.Var_d4cc_MapViewX);
-			int mouseY = ((mouseEvent.Position.Y - 8) / 16) + this.parent.Var_d75e_MapViewY;
+			GPoint mouseCell = this.parent.MapManagement.GetCellFromScreen(mouseEvent.Position);
+			int mouseX = mouseCell.X;
+			int mouseY = mouseCell.Y;
 
 			if (mouseEvent.Position.Y < 8)
 			{
@@ -409,38 +410,18 @@ namespace OpenCivOne
 						if (mouseEvent.Buttons == MouseButtonsEnum.None)
 						{
 							// Instruction address 0x1403:0x0882, size: 5
-							mouseX = this.parent.MapManagement.AdjustXPosition((mouseEvent.Position.X - 80) / 16 + this.parent.Var_d4cc_MapViewX);
-							mouseY = ((mouseEvent.Position.Y - 8) / 16) + this.parent.Var_d75e_MapViewY;
+							mouseCell = this.parent.MapManagement.GetCellFromScreen(mouseEvent.Position);
+							mouseX = mouseCell.X;
+							mouseY = mouseCell.Y;
 
 							// Instruction address 0x1403:0x08d0, size: 5
-							int distance = this.parent.MapManagement.GetDistance(
-								mouseX - this.parent.GameData.Players[playerID].Units[unitID].Position.X,
-								mouseY - this.parent.GameData.Players[playerID].Units[unitID].Position.Y);
-
-							if (Math.Abs(mouseX - this.parent.GameData.Players[playerID].Units[unitID].Position.X) == 79)
-							{
-								if (Math.Abs(mouseY - this.parent.GameData.Players[playerID].Units[unitID].Position.Y) <= 1)
-								{
-									distance = 1;
-								}
-							}
+							Unit unit1 = this.parent.GameData.Players[playerID].Units[unitID];
+							int distance = this.parent.MapManagement.GetDistance(new GPoint(mouseX, mouseY), unit1.Position);
 
 							if (distance == 1)
 							{
 								// The distance is one cell, we can issue a command for this movement
-								Unit unit1 = this.parent.GameData.Players[playerID].Units[unitID];
-								GPoint newMove = new GPoint(mouseX - unit1.Position.X, mouseY - unit1.Position.Y);
-
-								command = -1;
-
-								for (int i = 1; i < 9; i++)
-								{
-									if (this.parent.MoveDirections[i] == newMove)
-									{
-										command = i;
-										break;
-									}
-								}
+								command = this.parent.MapManagement.GetHexDirection(unit1.Position, new GPoint(mouseX, mouseY));
 
 								if (command > 0)
 								{
@@ -1666,6 +1647,12 @@ namespace OpenCivOne
 		{
 			if (unit != null && unit.UnitType != UnitTypeEnum.None)
 			{
+				// Only six of the eight compass directions are neighbours on the hex map.
+				if (!this.parent.MapManagement.IsValidHexDirection(unit.Position.X, newMoveDirection))
+				{
+					return;
+				}
+
 				GPoint direction = this.parent.MoveDirections[newMoveDirection];
 
 				if (this.parent.MapManagement.ValidateMapCoordinates(unit.Position + direction))
@@ -2468,10 +2455,8 @@ namespace OpenCivOne
 
 			if (unit.UnitType == UnitTypeEnum.Trireme && playerID == this.parent.GameData.HumanPlayerID && this.parent.CAPI.RNG.Next(2) != 0)
 			{
-				for (int i = 1; i < 9; i++)
+				foreach (GPoint newPosition in this.parent.MapManagement.GetHexNeighbors(unit.Position.X, unit.Position.Y))
 				{
-					GPoint newPosition = unit.Position + this.parent.MoveDirections[i];
-
 					if (this.parent.MapManagement.ValidateMapCoordinates(newPosition) &&
 						this.parent.MapManagement.GetTerrainType(newPosition) != TerrainTypeEnum.Water)
 					{

@@ -197,14 +197,8 @@ namespace OpenCivOne
 			new SpaceshipCell(3, 4, 6), new SpaceshipCell(-1, -1, -1), new SpaceshipCell(0, 0, 0)};
 
 		// Static objects
-		public readonly GPoint[] CityOffsets = new GPoint[] {
-			new GPoint(0, -1), new GPoint(1, 0), new GPoint(0, 1), 
-			new GPoint(-1, 0), new GPoint(1, -1), new GPoint(1, 1), 
-			new GPoint(-1, 1), new GPoint(-1, -1), new GPoint(0, -2), 
-			new GPoint(2, 0), new GPoint(0, 2), new GPoint(-2, 0),
-			new GPoint(-1, -2), new GPoint(1, -2), new GPoint(2, -1), 
-			new GPoint(2, 1), new GPoint(1, 2), new GPoint(-1, 2), 
-			new GPoint(-2, 1), new GPoint(-2, -1), new GPoint(0, 0) };
+		// City workable tiles are resolved per city with MapManagement.GetCityOffsets(),
+		// because their offsets depend on the column stagger of the hex map.
 
 		private UnitDefinition[] unitTypes = new UnitDefinition[] {
 			new UnitDefinition(UnitTypeEnum.Settler, "Settlers", TechnologyAdvanceEnum.NewFutureTechnology, UnitMovementTypeEnum.Land, 1, 0, 0, 1, 4, 0, 0, UnitRoleTypeEnum.Settler, TechnologyAdvanceEnum.None),	// 0
