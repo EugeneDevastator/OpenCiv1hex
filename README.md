@@ -1,4 +1,9 @@
-## About
+## Hex Civ - variation of the OpenCiv
+The only diff is that map uses staggered columns to represent hexagonal space.
+Made by human with ai.
+![image.png](image.png)
+
+## About original OpenCiv
 
 <p>OpenCivOne (OpenCiv1) project is a Free and Open Source (<a href="https://www.gnu.org/philosophy/free-sw.html" target="_blank_">FOSS</a>) preservation effort and rewrite of the iconic <a href="https://en.wikipedia.org/wiki/Civilization_(video_game)" target="_blank">Civilization game</a> designed by Sid Meier and Bruce Shelley in year 1991.</p>
 <p>If you like games, and want to preserve our gaming heritage, please support: <a href="https://www.stopkillinggames.com/en" target="_blank">The Stop Killing Games Campaign</a></p>
